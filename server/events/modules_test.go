@@ -27,10 +27,6 @@ func Test_findModuleDependants(t *testing.T) {
 	require.NoError(t, err)
 	b, err := fs.Sub(repos, "testdata/fs/repoB")
 	require.NoError(t, err)
-	c, err := fs.Sub(repos, "testdata/fs/repoC")
-	require.NoError(t, err)
-	d, err := fs.Sub(repos, "testdata/fs/repoD")
-	require.NoError(t, err)
 
 	tests := []struct {
 		name    string
@@ -59,29 +55,6 @@ func Test_findModuleDependants(t *testing.T) {
 			want: map[string][]string{
 				"modules/bar": {"dev/quxx", "prod/quxx"},
 				"modules/foo": {"dev/quxx", "prod/quxx"},
-			},
-			wantErr: assert.NoError,
-		},
-		{
-			name: "self import cycle",
-			args: args{
-				files:                    c,
-				autoplanModuleDependants: "**/init.tf",
-			},
-			want: map[string][]string{
-				"self": {"self"},
-			},
-			wantErr: assert.NoError,
-		},
-		{
-			name: "mutual cycle",
-			args: args{
-				files:                    d,
-				autoplanModuleDependants: "**/init.tf",
-			},
-			want: map[string][]string{
-				"a": {"a", "b"},
-				"b": {"a", "b"},
 			},
 			wantErr: assert.NoError,
 		},

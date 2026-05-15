@@ -1,5 +1,14 @@
 // Copyright 2017 HootSuite Media Inc.
-// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the License);
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//    http://www.apache.org/licenses/LICENSE-2.0
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an AS IS BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 // Modified hereafter by contributors to runatlantis/atlantis.
 
 package events
@@ -13,7 +22,7 @@ import (
 	"github.com/runatlantis/atlantis/server/logging"
 )
 
-//go:generate go tool pegomock generate --package mocks -o mocks/mock_project_lock.go ProjectLocker
+//go:generate pegomock generate --package mocks -o mocks/mock_project_lock.go ProjectLocker
 
 // ProjectLocker locks this project against other plans being run until this
 // project is unlocked.
@@ -29,10 +38,9 @@ type ProjectLocker interface {
 
 // DefaultProjectLocker implements ProjectLocker.
 type DefaultProjectLocker struct {
-	Locker         locking.Locker
-	NoOpLocker     locking.Locker
-	VCSClient      vcs.Client
-	ExecutableName string
+	Locker     locking.Locker
+	NoOpLocker locking.Locker
+	VCSClient  vcs.Client
 }
 
 // TryLockResponse is the result of trying to lock a project.
@@ -67,10 +75,9 @@ func (p *DefaultProjectLocker) TryLock(log logging.SimpleLogging, pull models.Pu
 			return nil, err
 		}
 		failureMsg := fmt.Sprintf(
-			"This project is currently locked by an unapplied plan from pull %s. To continue, delete the lock from %s or apply that plan and merge the pull request.\n\nOnce the lock is released, comment `%s plan` here to re-plan.",
+			"This project is currently locked by an unapplied plan from pull %s. To continue, delete the lock from %s or apply that plan and merge the pull request.\n\nOnce the lock is released, comment `atlantis plan` here to re-plan.",
 			link,
-			link,
-			p.ExecutableName)
+			link)
 		return &TryLockResponse{
 			LockAcquired:      false,
 			LockFailureReason: failureMsg,

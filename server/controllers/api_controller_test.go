@@ -23,7 +23,6 @@ import (
 	"github.com/runatlantis/atlantis/server/logging"
 	"github.com/runatlantis/atlantis/server/metrics/metricstest"
 	. "github.com/runatlantis/atlantis/testing"
-	"go.uber.org/mock/gomock"
 )
 
 const atlantisTokenHeader = "X-Atlantis-Token"
@@ -304,7 +303,7 @@ func TestAPIController_ListLocks(t *testing.T) {
 	mockLocks := map[string]models.ProjectLock{
 		"lock-id": mockLock,
 	}
-	ac.Locker.(*MockLocker).EXPECT().List().Return(mockLocks, nil)
+	When(ac.Locker.List()).ThenReturn(mockLocks, nil)
 
 	req, _ := http.NewRequest("GET", "", nil)
 	w := httptest.NewRecorder()
@@ -321,7 +320,7 @@ func TestAPIController_ListLocksEmpty(t *testing.T) {
 
 	expected := controllers.ListLocksResult{}
 	mockLocks := map[string]models.ProjectLock{}
-	ac.Locker.(*MockLocker).EXPECT().List().Return(mockLocks, nil)
+	When(ac.Locker.List()).ThenReturn(mockLocks, nil)
 
 	req, _ := http.NewRequest("GET", "", nil)
 	w := httptest.NewRecorder()
@@ -335,10 +334,7 @@ func TestAPIController_ListLocksEmpty(t *testing.T) {
 
 func setup(t *testing.T) (controllers.APIController, *MockProjectCommandBuilder, *MockProjectCommandRunner) {
 	RegisterMockTestingT(t)
-	gmockCtrl := gomock.NewController(t)
-	locker := NewMockLocker(gmockCtrl)
-	// Allow incidental calls to UnlockByPull (called internally during plan/apply operations)
-	locker.EXPECT().UnlockByPull(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	locker := NewMockLocker()
 	logger := logging.NewNoopLogger(t)
 	parser := NewMockEventParsing()
 	repoAllowlistChecker, err := events.NewRepoAllowlistChecker("*")

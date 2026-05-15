@@ -1656,6 +1656,7 @@ workflows:
 						RepoLocks:                 &valid.DefaultRepoLocks,
 						PolicyCheck:               Bool(false),
 						CustomPolicyCheck:         Bool(false),
+						AutoDiscover:              raw.DefaultAutoDiscover(),
 					},
 				},
 				Workflows: map[string]valid.Workflow{

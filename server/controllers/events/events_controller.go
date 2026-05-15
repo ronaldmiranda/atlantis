@@ -1,5 +1,14 @@
 // Copyright 2017 HootSuite Media Inc.
-// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the License);
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//    http://www.apache.org/licenses/LICENSE-2.0
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an AS IS BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 // Modified hereafter by contributors to runatlantis/atlantis.
 
 package events
@@ -33,7 +42,6 @@ import (
 const githubHeader = "X-Github-Event"
 const gitlabHeader = "X-Gitlab-Event"
 const azuredevopsHeader = "Request-Id"
-const azuredevopsServerHeader = "X-VSS-ActivityId"
 
 const giteaHeader = "X-Gitea-Event"
 const giteaEventTypeHeader = "X-Gitea-Event-Type"
@@ -143,7 +151,7 @@ func (e *VCSEventsController) Post(w http.ResponseWriter, r *http.Request) {
 			e.handleBitbucketServerPost(w, r)
 			return
 		}
-	} else if r.Header.Get(azuredevopsHeader) != "" || r.Header.Get(azuredevopsServerHeader) != "" {
+	} else if r.Header.Get(azuredevopsHeader) != "" {
 		if !e.supportsHost(models.AzureDevops) {
 			e.respond(w, logging.Debug, http.StatusBadRequest, "Ignoring request since not configured to support AzureDevops")
 			return
@@ -289,13 +297,7 @@ func (e *VCSEventsController) handleAzureDevopsPost(w http.ResponseWriter, r *ht
 	}
 	e.Logger.Debug("request valid")
 
-	header := azuredevopsHeader
-	reqID := r.Header.Get(azuredevopsHeader)
-	if reqID == "" {
-		header = azuredevopsServerHeader
-		reqID = r.Header.Get(azuredevopsServerHeader)
-	}
-	azuredevopsReqID := fmt.Sprintf("%s=%s", header, reqID)
+	azuredevopsReqID := "Request-Id=" + r.Header.Get("Request-Id")
 	event, err := azuredevops.ParseWebHook(payload)
 	if err != nil {
 		e.respond(w, logging.Error, http.StatusBadRequest, "Failed parsing webhook: %v %s", err, azuredevopsReqID)
@@ -342,7 +344,7 @@ func (e *VCSEventsController) handleGiteaPost(w http.ResponseWriter, r *http.Req
 	switch eventType {
 	case "pull_request_comment":
 		e.HandleGiteaPullRequestCommentEvent(w, body, reqID)
-	case "pull_request", "pull_request_sync":
+	case "pull_request":
 		logger.Debug("Handling as pull_request")
 		e.handleGiteaPullRequestEvent(logger, w, body, reqID)
 	// Add other case handlers as necessary
