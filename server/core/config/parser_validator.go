@@ -162,7 +162,7 @@ func (p *ParserValidator) ParseGlobalCfgJSON(cfgJSON string, defaultCfg valid.Gl
 	return p.validateRawGlobalCfg(rawCfg, defaultCfg, "json")
 }
 
-func decodeYAMLKnownFields(data []byte, out interface{}) (err error) {
+func decodeYAMLKnownFields(data []byte, out any) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("panic while parsing yaml: %v", r)
