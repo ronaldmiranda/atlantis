@@ -162,6 +162,8 @@ func (p *ParserValidator) ParseGlobalCfgJSON(cfgJSON string, defaultCfg valid.Gl
 	return p.validateRawGlobalCfg(rawCfg, defaultCfg, "json")
 }
 
+// decodeYAMLKnownFields decodes YAML with KnownFields enabled and converts
+// decoder panics into regular errors.
 func decodeYAMLKnownFields(data []byte, out any) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
