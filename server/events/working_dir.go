@@ -728,6 +728,19 @@ func (w *FileWorkspace) validateCloneDir(r models.Repo, p models.PullRequest, wo
 	return cloneDir, nil
 }
 
+// validateCloneDir computes the clone dir for the given repo/PR/workspace and
+// confirms it is contained within the managed data directory. Repo names already
+// pass through ATLANTIS_REPO_ALLOWLIST, but this explicit check makes the bound
+// provable to static analyzers that taint-track user input into filesystem APIs.
+func (w *FileWorkspace) validateCloneDir(r models.Repo, p models.PullRequest, workspace string) (string, error) {
+	cloneDir := filepath.Clean(w.cloneDir(r, p, workspace))
+	expectedPrefix := filepath.Clean(filepath.Join(w.DataDir, workingDirPrefix)) + string(filepath.Separator)
+	if !strings.HasPrefix(cloneDir, expectedPrefix) {
+		return "", fmt.Errorf("clone dir %q escapes managed data directory %q", cloneDir, expectedPrefix)
+	}
+	return cloneDir, nil
+}
+
 // sanitizeGitCredentials replaces any git clone urls that contain credentials
 // in s with the sanitized versions.
 func (w *FileWorkspace) sanitizeGitCredentials(s string, base models.Repo, head models.Repo) string {
