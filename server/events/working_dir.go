@@ -153,7 +153,7 @@ func (w *FileWorkspace) attemptReuseCloneDir(logger logging.SimpleLogging, c wra
 		logger.Info("repo is at correct commit %q so will not re-clone", c.pr.HeadCommit)
 		return true, nil
 	}
-	if !w.remoteHasBranch(logger, c, c.pr.BaseBranch) {
+	if w.CheckoutMerge && !w.remoteHasBranch(logger, c, c.pr.BaseBranch) {
 		logger.Info("repo appears to have changed base branch, must reclone")
 		return false, nil
 	}
@@ -648,7 +648,7 @@ func (w *FileWorkspace) mergeToBaseBranch(logger logging.SimpleLogging, c wrappe
 
 // GetWorkingDir returns the path to the workspace for this repo and pull.
 func (w *FileWorkspace) GetWorkingDir(r models.Repo, p models.PullRequest, workspace string) (string, error) {
-	repoDir, err := w.validateCloneDir(r, p, workspace)
+	repoDir, err := w.cloneDir(r, p, workspace)
 	if err != nil {
 		return "", err
 	}
@@ -661,7 +661,7 @@ func (w *FileWorkspace) GetWorkingDir(r models.Repo, p models.PullRequest, works
 // GetPullDir returns the dir where the workspaces for this pull are cloned.
 // If the dir doesn't exist it will return an error.
 func (w *FileWorkspace) GetPullDir(r models.Repo, p models.PullRequest) (string, error) {
-	dir, err := w.validateRepoPullDir(r, p)
+	dir, err := w.repoPullDir(r, p)
 	if err != nil {
 		return "", err
 	}
@@ -673,7 +673,7 @@ func (w *FileWorkspace) GetPullDir(r models.Repo, p models.PullRequest) (string,
 
 // Delete deletes the workspace for this repo and pull.
 func (w *FileWorkspace) Delete(logger logging.SimpleLogging, r models.Repo, p models.PullRequest) error {
-	repoPullDir, err := w.validateRepoPullDir(r, p)
+	repoPullDir, err := w.repoPullDir(r, p)
 	if err != nil {
 		return err
 	}
@@ -683,7 +683,7 @@ func (w *FileWorkspace) Delete(logger logging.SimpleLogging, r models.Repo, p mo
 
 // DeleteForWorkspace deletes the working dir for this workspace.
 func (w *FileWorkspace) DeleteForWorkspace(logger logging.SimpleLogging, r models.Repo, p models.PullRequest, workspace string) error {
-	workspaceDir, err := w.validateCloneDir(r, p, workspace)
+	workspaceDir, err := w.cloneDir(r, p, workspace)
 	if err != nil {
 		return err
 	}
@@ -691,21 +691,22 @@ func (w *FileWorkspace) DeleteForWorkspace(logger logging.SimpleLogging, r model
 	return os.RemoveAll(workspaceDir)
 }
 
-func (w *FileWorkspace) repoPullDir(r models.Repo, p models.PullRequest) string {
-	return filepath.Join(w.DataDir, workingDirPrefix, r.FullName, strconv.Itoa(p.Num))
+func (w *FileWorkspace) repoPullDir(r models.Repo, p models.PullRequest) (string, error) {
+	dir := filepath.Join(w.DataDir, workingDirPrefix, r.FullName, strconv.Itoa(p.Num))
+	if err := utils.EnsureSubPath(filepath.Join(w.DataDir, workingDirPrefix), dir); err != nil {
+		return "", fmt.Errorf("repo path traversal detected: %w", err)
+	}
+	return dir, nil
 }
 
-func (w *FileWorkspace) cloneDir(r models.Repo, p models.PullRequest, workspace string) string {
-	return filepath.Join(w.repoPullDir(r, p), workspace)
-}
-
-// validateRepoPullDir computes the repo-pull dir and confirms it is contained within the
-// managed data directory. Mirrors validateCloneDir but for the pull-level directory (no workspace segment).
-func (w *FileWorkspace) validateRepoPullDir(r models.Repo, p models.PullRequest) (string, error) {
-	dir := filepath.Clean(w.repoPullDir(r, p))
-	expectedPrefix := filepath.Clean(filepath.Join(w.DataDir, workingDirPrefix)) + string(filepath.Separator)
-	if !strings.HasPrefix(dir, expectedPrefix) {
-		return "", fmt.Errorf("repo path traversal: dir %q escapes managed data directory %q", dir, expectedPrefix)
+func (w *FileWorkspace) cloneDir(r models.Repo, p models.PullRequest, workspace string) (string, error) {
+	pullDir, err := w.repoPullDir(r, p)
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Join(pullDir, workspace)
+	if err := utils.EnsureSubPath(pullDir, dir); err != nil {
+		return "", fmt.Errorf("workspace path traversal detected: %w", err)
 	}
 	return dir, nil
 }
@@ -714,12 +715,15 @@ func (w *FileWorkspace) validateRepoPullDir(r models.Repo, p models.PullRequest)
 // confirms it is contained within the managed data directory. Repo names already
 // pass through ATLANTIS_REPO_ALLOWLIST, but this explicit check makes the bound
 // provable to static analyzers that taint-track user input into filesystem APIs.
-// Note: uses filepath.Clean (lexical) — does not resolve symlinks.
 func (w *FileWorkspace) validateCloneDir(r models.Repo, p models.PullRequest, workspace string) (string, error) {
-	cloneDir := filepath.Clean(w.cloneDir(r, p, workspace))
+	cloneDir, err := w.cloneDir(r, p, workspace)
+	if err != nil {
+		return "", err
+	}
+	cloneDir = filepath.Clean(cloneDir)
 	expectedPrefix := filepath.Clean(filepath.Join(w.DataDir, workingDirPrefix)) + string(filepath.Separator)
 	if !strings.HasPrefix(cloneDir, expectedPrefix) {
-		return "", fmt.Errorf("path traversal: clone dir %q escapes managed data directory %q", cloneDir, expectedPrefix)
+		return "", fmt.Errorf("clone dir %q escapes managed data directory %q", cloneDir, expectedPrefix)
 	}
 	return cloneDir, nil
 }
@@ -737,7 +741,10 @@ func (w *FileWorkspace) SetCheckForUpstreamChanges() {
 }
 
 func (w *FileWorkspace) DeletePlan(logger logging.SimpleLogging, r models.Repo, p models.PullRequest, workspace string, projectPath string, projectName string) error {
-	cloneDir := w.cloneDir(r, p, workspace)
+	cloneDir, err := w.cloneDir(r, p, workspace)
+	if err != nil {
+		return err
+	}
 	planPath := filepath.Join(cloneDir, projectPath, runtime.GetPlanFilename(workspace, projectName))
 	if err := utils.EnsureSubPath(cloneDir, planPath); err != nil {
 		return fmt.Errorf("plan path traversal detected: %w", err)
@@ -780,7 +787,12 @@ func (w *FileWorkspace) gitWriteLock(cloneDir string) func() {
 // GitReadLock acquires a shared lock so that clone/reset/merge (write lock) cannot run
 // while steps are using the working dir. Call the returned function when steps are done.
 func (w *FileWorkspace) GitReadLock(r models.Repo, p models.PullRequest, workspace string) func() {
-	return w.gitReadLock(w.cloneDir(r, p, workspace))
+	cloneDir, err := w.cloneDir(r, p, workspace)
+	if err != nil {
+		// Path traversal or other validation error: return a no-op unlock.
+		return func() {}
+	}
+	return w.gitReadLock(cloneDir)
 }
 
 // gitReadLock acquires the same shared lock as GitReadLock but by workspace dir path.
