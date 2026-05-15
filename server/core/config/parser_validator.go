@@ -56,12 +56,10 @@ func (p *ParserValidator) ParseRepoCfg(absRepoDir string, globalCfg valid.Global
 		return valid.RepoCfg{}, fmt.Errorf("unable to read %s file: %w", repoConfigFile, err)
 	}
 
-	// Parse YAML first to expand glob patterns before validation
+	// Parse YAML first to expand glob patterns before validation.
 	var rawConfig raw.RepoCfg
-	decoder := yaml.NewDecoder(bytes.NewReader(configData))
-	decoder.KnownFields(true)
-	err = decoder.Decode(&rawConfig)
-	if err != nil && !errors.Is(err, io.EOF) {
+	err = decodeYAMLKnownFields(configData, &rawConfig)
+	if err != nil {
 		return valid.RepoCfg{}, err
 	}
 
@@ -81,11 +79,8 @@ func (p *ParserValidator) ParseRepoCfg(absRepoDir string, globalCfg valid.Global
 func (p *ParserValidator) ParseRepoCfgData(repoCfgData []byte, globalCfg valid.GlobalCfg, repoID string, branch string) (valid.RepoCfg, error) {
 	var rawConfig raw.RepoCfg
 
-	decoder := yaml.NewDecoder(bytes.NewReader(repoCfgData))
-	decoder.KnownFields(true)
-
-	err := decoder.Decode(&rawConfig)
-	if err != nil && !errors.Is(err, io.EOF) {
+	err := decodeYAMLKnownFields(repoCfgData, &rawConfig)
+	if err != nil {
 		return valid.RepoCfg{}, err
 	}
 
@@ -149,11 +144,8 @@ func (p *ParserValidator) ParseGlobalCfg(configFile string, defaultCfg valid.Glo
 
 	var rawCfg raw.GlobalCfg
 
-	decoder := yaml.NewDecoder(bytes.NewReader(configData))
-	decoder.KnownFields(true)
-
-	err = decoder.Decode(&rawCfg)
-	if err != nil && !errors.Is(err, io.EOF) {
+	err = decodeYAMLKnownFields(configData, &rawCfg)
+	if err != nil {
 		return valid.GlobalCfg{}, err
 	}
 
@@ -168,6 +160,24 @@ func (p *ParserValidator) ParseGlobalCfgJSON(cfgJSON string, defaultCfg valid.Gl
 		return valid.GlobalCfg{}, err
 	}
 	return p.validateRawGlobalCfg(rawCfg, defaultCfg, "json")
+}
+
+func decodeYAMLKnownFields(data []byte, out interface{}) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic while parsing yaml: %v", r)
+		}
+	}()
+
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+
+	err = decoder.Decode(out)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return err
+	}
+
+	return nil
 }
 
 func (p *ParserValidator) validateRawGlobalCfg(rawCfg raw.GlobalCfg, defaultCfg valid.GlobalCfg, errTag string) (valid.GlobalCfg, error) {
