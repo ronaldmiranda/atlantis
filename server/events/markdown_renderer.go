@@ -147,6 +147,9 @@ func NewMarkdownRenderer(
 	quietPolicyChecks bool,
 	localizationConfigs ...i18n.TranslatorConfig,
 ) *MarkdownRenderer {
+	if len(localizationConfigs) > 1 {
+		panic("NewMarkdownRenderer accepts at most one localization config")
+	}
 	localizationConfig := i18n.TranslatorConfig{LanguageCode: i18n.DefaultLanguage}
 	if len(localizationConfigs) > 0 {
 		localizationConfig = localizationConfigs[0]

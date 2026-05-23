@@ -45,7 +45,7 @@ func (base catalog) merged(overrides catalog) catalog {
 		if strings.TrimSpace(title) == "" {
 			continue
 		}
-		merged.CommandTitles[strings.TrimSpace(strings.ToLower(commandName))] = strings.TrimSpace(title)
+		merged.CommandTitles[normalizeCommandName(commandName)] = strings.TrimSpace(title)
 	}
 	if strings.TrimSpace(overrides.PullRequestLabel) != "" {
 		merged.PullRequestLabel = strings.TrimSpace(overrides.PullRequestLabel)
@@ -156,7 +156,15 @@ func MustNewTranslator(config TranslatorConfig) *Translator {
 		return translator
 	}
 	translator, _ = NewTranslator(TranslatorConfig{LanguageCode: DefaultLanguage})
-	return translator
+	if translator != nil {
+		return translator
+	}
+	return &Translator{
+		languageCode: DefaultLanguage,
+		catalog: catalog{
+			CommandTitles: make(map[string]string),
+		},
+	}
 }
 
 // LanguageCode returns the normalized language code.
@@ -166,11 +174,11 @@ func (t *Translator) LanguageCode() string {
 
 // CommandTitle returns the display title for a command name.
 func (t *Translator) CommandTitle(commandName string) string {
-	normalized := strings.TrimSpace(strings.ToLower(commandName))
+	normalized := normalizeCommandName(commandName)
 	if title, ok := t.catalog.CommandTitles[normalized]; ok && strings.TrimSpace(title) != "" {
 		return title
 	}
-	return cases.Title(language.English).String(strings.ReplaceAll(normalized, "_", " "))
+	return fallbackCommandTitle(normalized)
 }
 
 // PullRequestLabel returns a localized pull request label.
@@ -215,4 +223,12 @@ func parseCatalog(data []byte) (catalog, error) {
 		c.CommandTitles = make(map[string]string)
 	}
 	return c, nil
+}
+
+func normalizeCommandName(commandName string) string {
+	return strings.TrimSpace(strings.ToLower(commandName))
+}
+
+func fallbackCommandTitle(commandName string) string {
+	return cases.Title(language.English).String(strings.ReplaceAll(commandName, "_", " "))
 }
