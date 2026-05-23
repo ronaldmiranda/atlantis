@@ -36,8 +36,8 @@ type catalog struct {
 	MergeRequestLabel string            `yaml:"merge_request_label"`
 }
 
-func (c catalog) merged(overrides catalog) catalog {
-	merged := c
+func (base catalog) merged(overrides catalog) catalog {
+	merged := base
 	if merged.CommandTitles == nil {
 		merged.CommandTitles = make(map[string]string)
 	}
@@ -110,13 +110,16 @@ type Translator struct {
 	catalog      catalog
 }
 
+// TranslatorConfig configures translation loading.
+type TranslatorConfig struct {
+	LanguageCode string
+	CatalogPath  string
+}
+
 // NewTranslator creates a translator from a built-in language plus optional custom YAML overrides.
-func NewTranslator(code string, customCatalogPaths ...string) (*Translator, error) {
-	normalized := NormalizeLanguageCode(code)
-	customPath := ""
-	if len(customCatalogPaths) > 0 {
-		customPath = customCatalogPaths[0]
-	}
+func NewTranslator(config TranslatorConfig) (*Translator, error) {
+	normalized := NormalizeLanguageCode(config.LanguageCode)
+	customPath := config.CatalogPath
 
 	baseLanguage := normalized
 	if err := ValidateLanguage(baseLanguage); err != nil {
@@ -147,12 +150,12 @@ func NewTranslator(code string, customCatalogPaths ...string) (*Translator, erro
 }
 
 // MustNewTranslator creates a translator or falls back to English.
-func MustNewTranslator(code string, customCatalogPaths ...string) *Translator {
-	translator, err := NewTranslator(code, customCatalogPaths...)
+func MustNewTranslator(config TranslatorConfig) *Translator {
+	translator, err := NewTranslator(config)
 	if err == nil {
 		return translator
 	}
-	translator, _ = NewTranslator(DefaultLanguage)
+	translator, _ = NewTranslator(TranslatorConfig{LanguageCode: DefaultLanguage})
 	return translator
 }
 

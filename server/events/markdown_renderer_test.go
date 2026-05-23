@@ -15,6 +15,7 @@ import (
 	"github.com/runatlantis/atlantis/server/events"
 	"github.com/runatlantis/atlantis/server/events/command"
 	"github.com/runatlantis/atlantis/server/events/models"
+	"github.com/runatlantis/atlantis/server/i18n"
 	"github.com/runatlantis/atlantis/server/logging"
 	. "github.com/runatlantis/atlantis/testing"
 )
@@ -188,7 +189,9 @@ func TestRenderSpanishLocalization(t *testing.T) {
 		"atlantis", // executableName
 		false,      // hideUnchangedPlanComments
 		false,      // quietPolicyChecks
-		"es",       // language
+		i18n.TranslatorConfig{
+			LanguageCode: "es", // language
+		},
 	)
 	ctx := &command.Context{
 		Log: logging.NewNoopLogger(t).WithHistory(),
@@ -223,18 +226,20 @@ command_titles:
 	Ok(t, err)
 
 	r := events.NewMarkdownRenderer(
-		false,             // gitlabSupportsCommonMark
-		false,             // disableApplyAll
-		false,             // disableApply
-		false,             // disableMarkdownFolding
-		false,             // disableRepoLocking
-		false,             // enableDiffMarkdownFormat
-		"",                // markdownTemplateOverridesDir
-		"atlantis",        // executableName
-		false,             // hideUnchangedPlanComments
-		false,             // quietPolicyChecks
-		"de",              // language (unsupported without custom file)
-		customCatalogPath, // custom language config file
+		false,      // gitlabSupportsCommonMark
+		false,      // disableApplyAll
+		false,      // disableApply
+		false,      // disableMarkdownFolding
+		false,      // disableRepoLocking
+		false,      // enableDiffMarkdownFormat
+		"",         // markdownTemplateOverridesDir
+		"atlantis", // executableName
+		false,      // hideUnchangedPlanComments
+		false,      // quietPolicyChecks
+		i18n.TranslatorConfig{
+			LanguageCode: "de",              // unsupported without custom file
+			CatalogPath:  customCatalogPath, // custom language config file
+		},
 	)
 	ctx := &command.Context{
 		Log: logging.NewNoopLogger(t).WithHistory(),

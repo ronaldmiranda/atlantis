@@ -25,7 +25,7 @@ func TestValidateLanguage(t *testing.T) {
 }
 
 func TestTranslator_BuiltInCatalog(t *testing.T) {
-	translator, err := i18n.NewTranslator("es")
+	translator, err := i18n.NewTranslator(i18n.TranslatorConfig{LanguageCode: "es"})
 	Ok(t, err)
 	Equals(t, "Aplicar", translator.CommandTitle("apply"))
 	Equals(t, "Solicitud de extracción", translator.PullRequestLabel())
@@ -42,7 +42,10 @@ command_titles:
 `), 0o600)
 	Ok(t, err)
 
-	translator, err := i18n.NewTranslator("de", customCatalogPath)
+	translator, err := i18n.NewTranslator(i18n.TranslatorConfig{
+		LanguageCode: "de",
+		CatalogPath:  customCatalogPath,
+	})
 	Ok(t, err)
 	Equals(t, "Plan (custom)", translator.CommandTitle("plan"))
 	Equals(t, "Apply", translator.CommandTitle("apply")) // fallback from built-in en
