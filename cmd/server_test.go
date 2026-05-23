@@ -106,6 +106,7 @@ var testFlags = map[string]any{
 	HideUnchangedPlanComments:        false,
 	HidePrevPlanComments:             false,
 	IncludeGitUntrackedFiles:         false,
+	LanguageFlag:                     "es",
 	LockingDBType:                    "boltdb",
 	LogLevelFlag:                     "debug",
 	MarkdownTemplateOverridesDirFlag: "/path2",
@@ -1096,6 +1097,54 @@ func TestExecute_ValidateDefaultTFDistribution(t *testing.T) {
 	}
 	for _, testCase := range cases {
 		t.Log("Should validate default tf distribution when " + testCase.description)
+		c := setupWithDefaults(testCase.flags, t)
+		err := c.Execute()
+		if testCase.expectErr != "" {
+			ErrEquals(t, testCase.expectErr, err)
+		} else {
+			Ok(t, err)
+		}
+	}
+}
+
+func TestExecute_ValidateLanguage(t *testing.T) {
+	cases := []struct {
+		description string
+		flags       map[string]any
+		expectErr   string
+	}{
+		{
+			"english",
+			map[string]any{
+				LanguageFlag: "en",
+			},
+			"",
+		},
+		{
+			"spanish",
+			map[string]any{
+				LanguageFlag: "es",
+			},
+			"",
+		},
+		{
+			"language variant normalizes",
+			map[string]any{
+				LanguageFlag: "es-MX",
+			},
+			"",
+		},
+		{
+			"errs on unsupported language",
+			map[string]any{
+				LanguageFlag: "de",
+			},
+			`unsupported language "de": supported languages are en, es`,
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Log("Should validate language when " + testCase.description)
 		c := setupWithDefaults(testCase.flags, t)
 		err := c.Execute()
 		if testCase.expectErr != "" {

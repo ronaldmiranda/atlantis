@@ -175,6 +175,42 @@ func TestRenderFailure(t *testing.T) {
 	}
 }
 
+func TestRenderSpanishLocalization(t *testing.T) {
+	r := events.NewMarkdownRenderer(
+		false,      // gitlabSupportsCommonMark
+		false,      // disableApplyAll
+		false,      // disableApply
+		false,      // disableMarkdownFolding
+		false,      // disableRepoLocking
+		false,      // enableDiffMarkdownFormat
+		"",         // markdownTemplateOverridesDir
+		"atlantis", // executableName
+		false,      // hideUnchangedPlanComments
+		false,      // quietPolicyChecks
+		"es",       // language
+	)
+	ctx := &command.Context{
+		Log: logging.NewNoopLogger(t).WithHistory(),
+		Pull: models.PullRequest{
+			BaseRepo: models.Repo{
+				VCSHost: models.VCSHost{
+					Type: models.Github,
+				},
+			},
+		},
+	}
+
+	planOutput := r.Render(ctx, command.Result{}, &events.CommentCommand{Name: command.Plan})
+	if !strings.Contains(planOutput, "Se ejecutó Planificar para 0 proyectos") {
+		t.Fatalf("expected Spanish plan header, got: %s", planOutput)
+	}
+
+	failureOutput := r.Render(ctx, command.Result{Failure: "fallo"}, &events.CommentCommand{Name: command.Apply})
+	if !strings.Contains(failureOutput, "**Aplicar falló**: fallo") {
+		t.Fatalf("expected Spanish failure rendering, got: %s", failureOutput)
+	}
+}
+
 func TestRenderErrAndFailure(t *testing.T) {
 	r := events.NewMarkdownRenderer(
 		false,      // gitlabSupportsCommonMark

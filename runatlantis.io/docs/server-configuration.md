@@ -1019,6 +1019,28 @@ Include git untracked files in the Atlantis modified file list.
 Used for example with CDKTF pre-workflow hooks that dynamically generate
 Terraform files.
 
+### `--language` <Badge text="v0.37.0+" type="info"/>
+
+```bash
+atlantis server --language="en"
+# or
+ATLANTIS_LANGUAGE="en"
+```
+
+Language used for Atlantis pull request comments. Defaults to `en`.
+
+Supported values:
+
+- `en` (English)
+- `es` (Spanish)
+
+Atlantis normalizes locale-style values (for example `es-MX` resolves to `es`).
+If an unsupported language is configured, Atlantis returns a validation error at startup.
+
+To add new built-in translations, add localized template overrides under
+`server/events/templates/i18n/<language>/` using the same template names as
+`server/events/templates/*.tmpl`.
+
 ### `--locking-db-type` <Badge text="v0.19.9+" type="info"/>
 
 ```bash
