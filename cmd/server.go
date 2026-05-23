@@ -1021,11 +1021,14 @@ func (s *ServerCmd) validate(userConfig server.UserConfig) error {
 		if languageErr != nil {
 			return languageErr
 		}
-	} else if err := i18n.ValidateCustomCatalog(userConfig.LanguageConfigFile); err != nil {
-		return err
-	} else if languageErr != nil {
-		// Intentionally allow unsupported language values when a custom language
-		// catalog is provided, so operators can define their own locale codes.
+	} else {
+		if err := i18n.ValidateCustomCatalog(userConfig.LanguageConfigFile); err != nil {
+			return err
+		}
+		if languageErr != nil {
+			// Intentionally allow unsupported language values when a custom language
+			// catalog is provided, so operators can define their own locale codes.
+		}
 	}
 
 	if userConfig.DefaultTFDistribution != TFDistributionTerraform && userConfig.DefaultTFDistribution != TFDistributionOpenTofu {
