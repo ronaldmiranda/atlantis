@@ -147,10 +147,14 @@ func NewMarkdownRenderer(
 	languageCodes ...string,
 ) *MarkdownRenderer {
 	languageCode := i18n.DefaultLanguage
+	customLanguageConfigFile := ""
 	if len(languageCodes) > 0 {
 		languageCode = languageCodes[0]
 	}
-	translator := i18n.MustNewTranslator(languageCode)
+	if len(languageCodes) > 1 {
+		customLanguageConfigFile = languageCodes[1]
+	}
+	translator := i18n.MustNewTranslator(languageCode, customLanguageConfigFile)
 
 	var templates *template.Template
 	templates, _ = template.New("").Funcs(sprig.TxtFuncMap()).ParseFS(templatesFS, "templates/*.tmpl")

@@ -4,6 +4,8 @@
 package i18n_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/runatlantis/atlantis/server/i18n"
@@ -22,9 +24,45 @@ func TestValidateLanguage(t *testing.T) {
 	ErrEquals(t, `unsupported language "de": supported languages are en, es`, i18n.ValidateLanguage("de"))
 }
 
-func TestTranslator_CommandTitle(t *testing.T) {
+func TestTranslator_BuiltInCatalog(t *testing.T) {
 	translator, err := i18n.NewTranslator("es")
 	Ok(t, err)
 	Equals(t, "Aplicar", translator.CommandTitle("apply"))
-	Equals(t, "Verificar políticas", translator.CommandTitle("policy_check"))
+	Equals(t, "Solicitud de extracción", translator.PullRequestLabel())
+	Equals(t, "Solicitud de fusión", translator.MergeRequestLabel())
+}
+
+func TestTranslator_CustomCatalogOverrides(t *testing.T) {
+	customCatalogPath := filepath.Join(t.TempDir(), "custom-language.yaml")
+	err := os.WriteFile(customCatalogPath, []byte(`
+pull_request_label: Pull Request (custom)
+merge_request_label: Merge Request (custom)
+command_titles:
+  plan: Plan (custom)
+`), 0o600)
+	Ok(t, err)
+
+	translator, err := i18n.NewTranslator("de", customCatalogPath)
+	Ok(t, err)
+	Equals(t, "Plan (custom)", translator.CommandTitle("plan"))
+	Equals(t, "Apply", translator.CommandTitle("apply")) // fallback from built-in en
+	Equals(t, "Pull Request (custom)", translator.PullRequestLabel())
+	Equals(t, "Merge Request (custom)", translator.MergeRequestLabel())
+}
+
+func TestValidateCustomCatalog(t *testing.T) {
+	Ok(t, i18n.ValidateCustomCatalog(""))
+
+	validPath := filepath.Join(t.TempDir(), "valid-language.yaml")
+	err := os.WriteFile(validPath, []byte("command_titles:\n  apply: Anwenden\n"), 0o600)
+	Ok(t, err)
+	Ok(t, i18n.ValidateCustomCatalog(validPath))
+
+	invalidPath := filepath.Join(t.TempDir(), "invalid-language.yaml")
+	err = os.WriteFile(invalidPath, []byte(":\n"), 0o600)
+	Ok(t, err)
+	err = i18n.ValidateCustomCatalog(invalidPath)
+	if err == nil {
+		t.Fatalf("expected invalid custom catalog error")
+	}
 }

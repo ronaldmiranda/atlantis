@@ -4,12 +4,16 @@
 package i18n
 
 import (
+	"embed"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -21,6 +25,35 @@ const (
 var supportedLanguages = []string{
 	EnglishLanguage,
 	SpanishLanguage,
+}
+
+//go:embed locales/*.yaml
+var localeFS embed.FS
+
+type catalog struct {
+	CommandTitles     map[string]string `yaml:"command_titles"`
+	PullRequestLabel  string            `yaml:"pull_request_label"`
+	MergeRequestLabel string            `yaml:"merge_request_label"`
+}
+
+func (c catalog) merged(overrides catalog) catalog {
+	merged := c
+	if merged.CommandTitles == nil {
+		merged.CommandTitles = make(map[string]string)
+	}
+	for commandName, title := range overrides.CommandTitles {
+		if strings.TrimSpace(title) == "" {
+			continue
+		}
+		merged.CommandTitles[strings.TrimSpace(strings.ToLower(commandName))] = strings.TrimSpace(title)
+	}
+	if strings.TrimSpace(overrides.PullRequestLabel) != "" {
+		merged.PullRequestLabel = strings.TrimSpace(overrides.PullRequestLabel)
+	}
+	if strings.TrimSpace(overrides.MergeRequestLabel) != "" {
+		merged.MergeRequestLabel = strings.TrimSpace(overrides.MergeRequestLabel)
+	}
+	return merged
 }
 
 // SupportedLanguages returns a copy of all supported language codes.
@@ -60,26 +93,66 @@ func ValidateLanguage(code string) error {
 	return fmt.Errorf("unsupported language %q: supported languages are %s", normalized, SupportedLanguagesDescription())
 }
 
+// ValidateCustomCatalog validates a custom YAML catalog file.
+func ValidateCustomCatalog(path string) error {
+	if strings.TrimSpace(path) == "" {
+		return nil
+	}
+	if _, err := loadCatalogFromPath(path); err != nil {
+		return fmt.Errorf("invalid language-config-file %q: %w", path, err)
+	}
+	return nil
+}
+
 // Translator contains localized strings for comment rendering.
 type Translator struct {
 	languageCode string
+	catalog      catalog
 }
 
-// NewTranslator creates a translator using a supported language.
-func NewTranslator(code string) (*Translator, error) {
+// NewTranslator creates a translator from a built-in language plus optional custom YAML overrides.
+func NewTranslator(code string, customCatalogPaths ...string) (*Translator, error) {
 	normalized := NormalizeLanguageCode(code)
-	if err := ValidateLanguage(normalized); err != nil {
+	customPath := ""
+	if len(customCatalogPaths) > 0 {
+		customPath = customCatalogPaths[0]
+	}
+
+	baseLanguage := normalized
+	if err := ValidateLanguage(baseLanguage); err != nil {
+		if strings.TrimSpace(customPath) == "" {
+			return nil, err
+		}
+		baseLanguage = DefaultLanguage
+	}
+
+	baseCatalog, err := loadCatalogFromBuiltIn(baseLanguage)
+	if err != nil {
 		return nil, err
 	}
-	return &Translator{languageCode: normalized}, nil
+	loadedCatalog := baseCatalog
+
+	if strings.TrimSpace(customPath) != "" {
+		overrides, loadErr := loadCatalogFromPath(customPath)
+		if loadErr != nil {
+			return nil, fmt.Errorf("loading language config file %q: %w", customPath, loadErr)
+		}
+		loadedCatalog = loadedCatalog.merged(overrides)
+	}
+
+	return &Translator{
+		languageCode: normalized,
+		catalog:      loadedCatalog,
+	}, nil
 }
 
 // MustNewTranslator creates a translator or falls back to English.
-func MustNewTranslator(code string) *Translator {
-	translator, err := NewTranslator(code)
-	if err != nil {
-		translator, _ = NewTranslator(DefaultLanguage)
+func MustNewTranslator(code string, customCatalogPaths ...string) *Translator {
+	translator, err := NewTranslator(code, customCatalogPaths...)
+	if err == nil {
+		return translator
 	}
+	translator, _ = NewTranslator(DefaultLanguage)
 	return translator
 }
 
@@ -91,44 +164,52 @@ func (t *Translator) LanguageCode() string {
 // CommandTitle returns the display title for a command name.
 func (t *Translator) CommandTitle(commandName string) string {
 	normalized := strings.TrimSpace(strings.ToLower(commandName))
-	switch t.languageCode {
-	case SpanishLanguage:
-		switch normalized {
-		case "apply":
-			return "Aplicar"
-		case "plan":
-			return "Planificar"
-		case "unlock":
-			return "Desbloquear"
-		case "policy_check":
-			return "Verificar políticas"
-		case "approve_policies":
-			return "Aprobar políticas"
-		case "version":
-			return "Versión"
-		case "import":
-			return "Importar"
-		case "state":
-			return "Estado"
-		case "cancel":
-			return "Cancelar"
-		}
+	if title, ok := t.catalog.CommandTitles[normalized]; ok && strings.TrimSpace(title) != "" {
+		return title
 	}
 	return cases.Title(language.English).String(strings.ReplaceAll(normalized, "_", " "))
 }
 
 // PullRequestLabel returns a localized pull request label.
 func (t *Translator) PullRequestLabel() string {
-	if t.languageCode == SpanishLanguage {
-		return "Solicitud de extracción"
+	if strings.TrimSpace(t.catalog.PullRequestLabel) != "" {
+		return t.catalog.PullRequestLabel
 	}
 	return "Pull Request"
 }
 
 // MergeRequestLabel returns a localized merge request label.
 func (t *Translator) MergeRequestLabel() string {
-	if t.languageCode == SpanishLanguage {
-		return "Solicitud de fusión"
+	if strings.TrimSpace(t.catalog.MergeRequestLabel) != "" {
+		return t.catalog.MergeRequestLabel
 	}
 	return "Merge Request"
+}
+
+func loadCatalogFromBuiltIn(languageCode string) (catalog, error) {
+	path := filepath.ToSlash(filepath.Join("locales", languageCode+".yaml"))
+	data, err := localeFS.ReadFile(path)
+	if err != nil {
+		return catalog{}, fmt.Errorf("reading built-in language catalog %q: %w", languageCode, err)
+	}
+	return parseCatalog(data)
+}
+
+func loadCatalogFromPath(path string) (catalog, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return catalog{}, err
+	}
+	return parseCatalog(data)
+}
+
+func parseCatalog(data []byte) (catalog, error) {
+	var c catalog
+	if err := yaml.Unmarshal(data, &c); err != nil {
+		return catalog{}, err
+	}
+	if c.CommandTitles == nil {
+		c.CommandTitles = make(map[string]string)
+	}
+	return c, nil
 }

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -208,6 +209,67 @@ func TestRenderSpanishLocalization(t *testing.T) {
 	failureOutput := r.Render(ctx, command.Result{Failure: "fallo"}, &events.CommentCommand{Name: command.Apply})
 	if !strings.Contains(failureOutput, "**Aplicar falló**: fallo") {
 		t.Fatalf("expected Spanish failure rendering, got: %s", failureOutput)
+	}
+}
+
+func TestRenderCustomLanguageConfigOverride(t *testing.T) {
+	tempDir := t.TempDir()
+	customCatalogPath := filepath.Join(tempDir, "custom-language.yaml")
+	err := os.WriteFile(customCatalogPath, []byte(`
+pull_request_label: Pull Request (custom)
+command_titles:
+  plan: Plan (custom)
+`), 0o600)
+	Ok(t, err)
+
+	r := events.NewMarkdownRenderer(
+		false,             // gitlabSupportsCommonMark
+		false,             // disableApplyAll
+		false,             // disableApply
+		false,             // disableMarkdownFolding
+		false,             // disableRepoLocking
+		false,             // enableDiffMarkdownFormat
+		"",                // markdownTemplateOverridesDir
+		"atlantis",        // executableName
+		false,             // hideUnchangedPlanComments
+		false,             // quietPolicyChecks
+		"de",              // language (unsupported without custom file)
+		customCatalogPath, // custom language config file
+	)
+	ctx := &command.Context{
+		Log: logging.NewNoopLogger(t).WithHistory(),
+		Pull: models.PullRequest{
+			BaseRepo: models.Repo{
+				VCSHost: models.VCSHost{
+					Type: models.Github,
+				},
+			},
+		},
+	}
+
+	res := command.Result{
+		ProjectResults: []command.ProjectResult{
+			{
+				ProjectCommandOutput: command.ProjectCommandOutput{
+					PlanSuccess: &models.PlanSuccess{
+						TerraformOutput: "terraform-output",
+						LockURL:         "lock-url",
+						RePlanCmd:       "atlantis plan -d path -w workspace",
+						ApplyCmd:        "atlantis apply -d path -w workspace",
+					},
+				},
+				Workspace:  "workspace",
+				RepoRelDir: "path",
+			},
+		},
+	}
+
+	output := r.Render(ctx, res, &events.CommentCommand{Name: command.Plan})
+	if !strings.Contains(output, "Ran Plan (custom) for dir: `path` workspace: `workspace`") {
+		t.Fatalf("expected command title override, got: %s", output)
+	}
+	if !strings.Contains(output, "Pull Request (custom)") {
+		t.Fatalf("expected pull request label override, got: %s", output)
 	}
 }
 

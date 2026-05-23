@@ -480,6 +480,7 @@ func NewServer(userConfig UserConfig, config Config) (*Server, error) {
 		userConfig.HideUnchangedPlanComments,
 		userConfig.QuietPolicyChecks,
 		userConfig.Language,
+		userConfig.LanguageConfigFile,
 	)
 
 	var lockingClient locking.Locker
