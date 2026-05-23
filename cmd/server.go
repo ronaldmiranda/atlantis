@@ -1016,18 +1016,15 @@ func (s *ServerCmd) validate(userConfig server.UserConfig) error {
 	if !isValidLogLevel(userConfig.LogLevel) {
 		return fmt.Errorf("invalid log level: must be one of %v", ValidLogLevels)
 	}
-	languageErr := i18n.ValidateLanguage(userConfig.Language)
+	// Intentionally allow unsupported --language values when a custom language
+	// catalog is provided, so operators can define their own locale codes.
 	if strings.TrimSpace(userConfig.LanguageConfigFile) == "" {
-		if languageErr != nil {
-			return languageErr
+		if err := i18n.ValidateLanguage(userConfig.Language); err != nil {
+			return err
 		}
 	} else {
 		if err := i18n.ValidateCustomCatalog(userConfig.LanguageConfigFile); err != nil {
 			return err
-		}
-		if languageErr != nil {
-			// Intentionally allow unsupported language values when a custom language
-			// catalog is provided, so operators can define their own locale codes.
 		}
 	}
 

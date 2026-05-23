@@ -278,6 +278,121 @@ command_titles:
 	}
 }
 
+func TestRenderUsesStableCommandIdentifierWhenTitlesCollide(t *testing.T) {
+	tempDir := t.TempDir()
+	customCatalogPath := filepath.Join(tempDir, "colliding-language.yaml")
+	err := os.WriteFile(customCatalogPath, []byte(`
+command_titles:
+  plan: Run
+  apply: Run
+`), 0o600)
+	Ok(t, err)
+
+	r := events.NewMarkdownRenderer(
+		false,      // gitlabSupportsCommonMark
+		false,      // disableApplyAll
+		false,      // disableApply
+		false,      // disableMarkdownFolding
+		false,      // disableRepoLocking
+		false,      // enableDiffMarkdownFormat
+		"",         // markdownTemplateOverridesDir
+		"atlantis", // executableName
+		false,      // hideUnchangedPlanComments
+		false,      // quietPolicyChecks
+		i18n.TranslatorConfig{
+			LanguageCode: "de",
+			CatalogPath:  customCatalogPath,
+		},
+	)
+	ctx := &command.Context{
+		Log: logging.NewNoopLogger(t).WithHistory(),
+		Pull: models.PullRequest{
+			BaseRepo: models.Repo{
+				VCSHost: models.VCSHost{
+					Type: models.Github,
+				},
+			},
+		},
+	}
+
+	res := command.Result{
+		ProjectResults: []command.ProjectResult{
+			{
+				ProjectCommandOutput: command.ProjectCommandOutput{
+					ApplySuccess: "apply-success-output",
+				},
+				Workspace:  "workspace",
+				RepoRelDir: "path",
+			},
+		},
+	}
+
+	output := r.Render(ctx, res, &events.CommentCommand{Name: command.Apply})
+	if !strings.Contains(output, "Ran Run for dir: `path` workspace: `workspace`") {
+		t.Fatalf("expected localized custom command title in output, got: %s", output)
+	}
+	if strings.Contains(output, "To **apply** all unapplied plans") {
+		t.Fatalf("expected apply template selection despite colliding titles, got: %s", output)
+	}
+}
+
+func TestRenderPolicyCheckIncludesPolicyOutputForLocalizedCommand(t *testing.T) {
+	r := events.NewMarkdownRenderer(
+		false,      // gitlabSupportsCommonMark
+		false,      // disableApplyAll
+		false,      // disableApply
+		false,      // disableMarkdownFolding
+		false,      // disableRepoLocking
+		false,      // enableDiffMarkdownFormat
+		"",         // markdownTemplateOverridesDir
+		"atlantis", // executableName
+		false,      // hideUnchangedPlanComments
+		false,      // quietPolicyChecks
+		i18n.TranslatorConfig{
+			LanguageCode: "es",
+		},
+	)
+	ctx := &command.Context{
+		Log: logging.NewNoopLogger(t).WithHistory(),
+		Pull: models.PullRequest{
+			BaseRepo: models.Repo{
+				VCSHost: models.VCSHost{
+					Type: models.Github,
+				},
+			},
+		},
+	}
+
+	res := command.Result{
+		ProjectResults: []command.ProjectResult{
+			{
+				ProjectCommandOutput: command.ProjectCommandOutput{
+					PolicyCheckResults: &models.PolicyCheckResults{
+						PreConftestOutput: "pre-policy-output",
+						PolicySetResults: []models.PolicySetResult{
+							{PolicySetName: "set-a", PolicyOutput: "1 test, 1 passed, 0 warnings, 0 failures, 0 exceptions", Passed: true},
+						},
+						PostConftestOutput: "post-policy-output",
+						LockURL:            "lock-url",
+						RePlanCmd:          "atlantis plan -d path -w workspace",
+						ApplyCmd:           "atlantis apply -d path -w workspace",
+					},
+				},
+				Workspace:  "workspace",
+				RepoRelDir: "path",
+			},
+		},
+	}
+
+	output := r.Render(ctx, res, &events.CommentCommand{Name: command.PolicyCheck})
+	if !strings.Contains(output, "pre-policy-output") {
+		t.Fatalf("expected policy pre-conftest output in localized rendering, got: %s", output)
+	}
+	if !strings.Contains(output, "post-policy-output") {
+		t.Fatalf("expected policy post-conftest output in localized rendering, got: %s", output)
+	}
+}
+
 func TestRenderErrAndFailure(t *testing.T) {
 	r := events.NewMarkdownRenderer(
 		false,      // gitlabSupportsCommonMark
