@@ -204,9 +204,28 @@ func TestRenderSpanishLocalization(t *testing.T) {
 		},
 	}
 
-	planOutput := r.Render(ctx, command.Result{}, &events.CommentCommand{Name: command.Plan})
-	if !strings.Contains(planOutput, "Se ejecutó Planificar para 0 proyectos") {
+	planResult := command.Result{
+		ProjectResults: []command.ProjectResult{
+			{
+				ProjectCommandOutput: command.ProjectCommandOutput{
+					PlanSuccess: &models.PlanSuccess{
+						TerraformOutput: "terraform-output",
+						LockURL:         "lock-url",
+						RePlanCmd:       "atlantis plan -d path -w workspace",
+						ApplyCmd:        "atlantis apply -d path -w workspace",
+					},
+				},
+				Workspace:  "workspace",
+				RepoRelDir: "path",
+			},
+		},
+	}
+	planOutput := r.Render(ctx, planResult, &events.CommentCommand{Name: command.Plan})
+	if !strings.Contains(planOutput, "Se ejecutó Planificar para directorio:") {
 		t.Fatalf("expected Spanish plan header, got: %s", planOutput)
+	}
+	if !strings.Contains(planOutput, "Para **aplicar**") {
+		t.Fatalf("expected Spanish plan apply instruction, got: %s", planOutput)
 	}
 
 	failureOutput := r.Render(ctx, command.Result{Failure: "fallo"}, &events.CommentCommand{Name: command.Apply})

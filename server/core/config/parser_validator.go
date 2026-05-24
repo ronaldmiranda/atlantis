@@ -83,9 +83,9 @@ func (p *ParserValidator) ParseRepoCfgData(repoCfgData []byte, globalCfg valid.G
 	return p.parseRawRepoCfg(rawConfig, globalCfg, repoID, branch)
 }
 
-// decodeYAML decodes YAML data into dest. It recovers from panics that can be
-// triggered by the yaml.v3 library when processing malformed input (e.g. YAML
-// merge keys with unhashable value types), converting them to errors instead.
+// decodeYAML wraps yaml.v3 Decoder.Decode for user-supplied YAML.
+// It recovers from yaml.v3 panics in merge-key processing (e.g. `<<` with
+// unhashable value types like []interface{}), converting them to errors.
 func decodeYAML(data []byte, dest any) (retErr error) {
 	defer func() {
 		if r := recover(); r != nil {
