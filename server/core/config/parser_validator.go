@@ -86,7 +86,7 @@ func (p *ParserValidator) ParseRepoCfgData(repoCfgData []byte, globalCfg valid.G
 // decodeYAML decodes YAML data into dest. It recovers from panics that can be
 // triggered by the yaml.v3 library when processing malformed input (e.g. YAML
 // merge keys with unhashable value types), converting them to errors instead.
-func decodeYAML(data []byte, dest interface{}) (retErr error) {
+func decodeYAML(data []byte, dest any) (retErr error) {
 	defer func() {
 		if r := recover(); r != nil {
 			retErr = fmt.Errorf("yaml: unexpected error while parsing: %v", r)
