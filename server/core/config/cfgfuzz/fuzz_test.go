@@ -28,6 +28,10 @@ projects:
     when_modified: ["*.tf"]
     enabled: true
 `))
+	// Regression seed: yaml.v3 merge-key panic (hash of unhashable type []interface{}).
+	// The YAML merge key (<<) with an illegal value triggered a panic inside gopkg.in/yaml.v3
+	// instead of returning a decode error.  Fixed by wrapping Decode with recover().
+	f.Add([]byte("0nnnn:\n\n<< :\n\n0.0:\n"))
 
 	pv := config.ParserValidator{}
 	globalCfg := valid.NewGlobalCfgFromArgs(valid.GlobalCfgArgs{AllowAllRepoSettings: true})

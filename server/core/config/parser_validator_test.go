@@ -114,6 +114,43 @@ func TestParseCfgs_InvalidYAML(t *testing.T) {
 	}
 }
 
+// TestParseRepoCfgData_YAMLMergeKeyPanic is a regression test for a fuzz crash where
+// the yaml.v3 library panicked (instead of returning an error) when it encountered
+// a YAML merge key (<<) with an unhashable value type.
+func TestParseRepoCfgData_YAMLMergeKeyPanic(t *testing.T) {
+	// These inputs triggered a panic in gopkg.in/yaml.v3's merge logic.
+	// They should return an error gracefully rather than crashing.
+	inputs := [][]byte{
+		// YAML merge key with a scalar value (illegal; requires map or sequence of maps)
+		[]byte("0nnnn:\n<< : |\n0.0:\n"),
+		// Merge key with a sequence of scalars (also illegal)
+		[]byte("a:\n<<:\n  - 1\n  - 2\n"),
+		// Deeply nested merge key with mixed types
+		[]byte("a:\n  <<: [1, b: 2]\n"),
+		// Merge key with plain scalar – causes "hash of unhashable type" panic in yaml.v3
+		[]byte("0nnnn:\n\n<< :\n\n0.0:\n"),
+	}
+
+	pv := config.ParserValidator{}
+	gCfg := valid.NewGlobalCfgFromArgs(valid.GlobalCfgArgs{AllowAllRepoSettings: true})
+
+	for i, input := range inputs {
+		t.Run(fmt.Sprintf("input_%d", i), func(t *testing.T) {
+			// Must not panic; an error return is acceptable.
+			panicked := false
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						panicked = true
+					}
+				}()
+				_, _ = pv.ParseRepoCfgData(input, gCfg, "github.com/test/repo", "main")
+			}()
+			Assert(t, !panicked, "ParseRepoCfgData panicked on input %d: %q", i, input)
+		})
+	}
+}
+
 func TestParseRepoCfg(t *testing.T) {
 	tfVersion, _ := version.NewVersion("v0.11.0")
 	cases := []struct {

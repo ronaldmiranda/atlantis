@@ -58,10 +58,7 @@ func (p *ParserValidator) ParseRepoCfg(absRepoDir string, globalCfg valid.Global
 
 	// Parse YAML first to expand glob patterns before validation
 	var rawConfig raw.RepoCfg
-	decoder := yaml.NewDecoder(bytes.NewReader(configData))
-	decoder.KnownFields(true)
-	err = decoder.Decode(&rawConfig)
-	if err != nil && !errors.Is(err, io.EOF) {
+	if err = decodeYAML(configData, &rawConfig); err != nil {
 		return valid.RepoCfg{}, err
 	}
 
@@ -80,16 +77,27 @@ func (p *ParserValidator) ParseRepoCfg(absRepoDir string, globalCfg valid.Global
 // directory. This method is primarily used for skip-clone scenarios.
 func (p *ParserValidator) ParseRepoCfgData(repoCfgData []byte, globalCfg valid.GlobalCfg, repoID string, branch string) (valid.RepoCfg, error) {
 	var rawConfig raw.RepoCfg
-
-	decoder := yaml.NewDecoder(bytes.NewReader(repoCfgData))
-	decoder.KnownFields(true)
-
-	err := decoder.Decode(&rawConfig)
-	if err != nil && !errors.Is(err, io.EOF) {
+	if err := decodeYAML(repoCfgData, &rawConfig); err != nil {
 		return valid.RepoCfg{}, err
 	}
-
 	return p.parseRawRepoCfg(rawConfig, globalCfg, repoID, branch)
+}
+
+// decodeYAML decodes YAML data into dest. It recovers from panics that can be
+// triggered by the yaml.v3 library when processing malformed input (e.g. YAML
+// merge keys with unhashable value types), converting them to errors instead.
+func decodeYAML(data []byte, dest interface{}) (retErr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			retErr = fmt.Errorf("yaml: unexpected error while parsing: %v", r)
+		}
+	}()
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(dest); err != nil && !errors.Is(err, io.EOF) {
+		return err
+	}
+	return nil
 }
 
 // parseRawRepoCfg validates and processes a raw config into a valid config.

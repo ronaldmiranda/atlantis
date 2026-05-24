@@ -71,6 +71,7 @@
 4. **Website needs npm install first:** Always run `npm install` before `npm run website:*` commands.
 5. **docker-compose needs atlantis.env:** Create file per CONTRIBUTING.md template for local webhook testing.
 6. **E2E GitHub tests require GitHub App secrets:** CI needs `ATLANTISBOT_GH_APP_ID`, `ATLANTISBOT_GH_APP_KEY`, `ATLANTISBOT_GH_APP_SLUG` secrets configured. PAT auth (`ATLANTISBOT_GITHUB_USERNAME`/`ATLANTISBOT_GITHUB_TOKEN`) is deprecated due to org 2FA requirements (#6311).
+7. **yaml.v3 merge key panic:** `gopkg.in/yaml.v3` panics (instead of returning an error) when the YAML `<<` merge key has an unhashable value type (e.g. `[]interface{}`). Always wrap `decoder.Decode` with a `recover()` helper when decoding user-supplied YAML. See `server/core/config/parser_validator.go:decodeYAML`.
 
 ## Code Style
 
